@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Siren,
-  Users,
+  
   Activity,
   Heart,
   Clock,
   TrendingUp,
   AlertCircle,
   Megaphone,
-  Plus,
+  
   ArrowRight,
 } from "lucide-react";
 import {
@@ -34,6 +34,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+
+
 import { format, subDays, startOfDay } from "date-fns";
 
 export default function Dashboard() {
@@ -49,9 +51,10 @@ export default function Dashboard() {
   const [recentEmergencies, setRecentEmergencies] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+ useEffect(() => {
+  loadDashboard();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   async function loadDashboard() {
     setLoading(true);
