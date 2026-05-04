@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Modal from "../components/Modal";
+import AssignButton from "../components/AssignButton";
 import { format, formatDistanceToNow } from "date-fns";
 
 const STATUS_OPTIONS = [
@@ -255,6 +256,7 @@ function TransportCard({ request, onView, onStatusChange }) {
         </div>
 
         <div onClick={(e) => e.stopPropagation()}>
+             <AssignButton request={request} collectionName="transport_requests" />
           <select
             value={request.status || "pending"}
             onChange={(e) => onStatusChange(e.target.value)}

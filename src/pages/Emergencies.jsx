@@ -29,6 +29,7 @@ import {
 import { db } from "../firebase";
 import Modal from "../components/Modal";
 import PriorityBadge from "../components/PriorityBadge";
+import AssignButton from "../components/AssignButton";
 import {
   triageEmergency,
   sortByPriority,
@@ -592,6 +593,8 @@ function EmergencyCard({
           className="flex-shrink-0 flex flex-col gap-1 items-end"
           onClick={(e) => e.stopPropagation()}
         >
+             <AssignButton request={request} collectionName={request._source === "quick" ? "quick_emergency_requests" : "emergency_requests"} />
+          
           <select
             value={request.status || "pending"}
             onChange={(e) => onStatusChange(e.target.value)}
