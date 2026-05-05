@@ -37,8 +37,6 @@ import {
   format,
   subDays,
   startOfDay,
-  startOfWeek,
-  startOfMonth,
   eachDayOfInterval,
 } from "date-fns";
 
@@ -90,11 +88,12 @@ export default function Analytics() {
   async function loadData() {
     setLoading(true);
     try {
-      // Compute the cutoff timestamp
-      const since = range === "all" ? null : startOfDay(subDays(new Date(), parseInt(range)));
+      const since =
+        range === "all"
+          ? null
+          : startOfDay(subDays(new Date(), parseInt(range)));
       const sinceTs = since ? Timestamp.fromDate(since) : null;
 
-      // Helper to query a collection optionally filtered by createdAt or submittedAt
       async function fetchCollection(name, dateField = "createdAt") {
         let q;
         if (sinceTs) {
@@ -137,13 +136,11 @@ export default function Analytics() {
     }
   }
 
-  // Combined emergencies (regular + quick)
   const allEmergencies = useMemo(
     () => [...data.emergencies, ...data.quickEmergencies],
     [data.emergencies, data.quickEmergencies]
   );
 
-  // 1️⃣ Emergencies over time
   const trendData = useMemo(() => {
     if (allEmergencies.length === 0) return [];
     const days = range === "all" ? 90 : parseInt(range);
@@ -175,7 +172,6 @@ export default function Analytics() {
     });
   }, [allEmergencies, data.transports, range]);
 
-  // 2️⃣ Status breakdown
   const statusData = useMemo(() => {
     const counts = { pending: 0, dispatched: 0, completed: 0, cancelled: 0 };
     allEmergencies.forEach((e) => {
@@ -188,7 +184,6 @@ export default function Analytics() {
       .map(([name, value]) => ({ name, value }));
   }, [allEmergencies]);
 
-  // 3️⃣ Peak hours (0-23)
   const hourData = useMemo(() => {
     const buckets = Array.from({ length: 24 }, (_, i) => ({
       hour: i,
@@ -203,7 +198,6 @@ export default function Analytics() {
     return buckets;
   }, [allEmergencies]);
 
-  // 4️⃣ Day of week
   const dowData = useMemo(() => {
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const buckets = days.map((d) => ({ day: d, count: 0 }));
@@ -215,7 +209,6 @@ export default function Analytics() {
     return buckets;
   }, [allEmergencies]);
 
-  // 5️⃣ Station load
   const stationData = useMemo(() => {
     const counts = {};
     allEmergencies.forEach((e) => {
@@ -225,10 +218,9 @@ export default function Analytics() {
     return Object.entries(counts)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 8); // top 8
+      .slice(0, 8);
   }, [allEmergencies]);
 
-  // 6️⃣ Mission types
   const missionTypeData = useMemo(() => {
     const counts = {};
     data.missions.forEach((m) => {
@@ -241,7 +233,6 @@ export default function Analytics() {
       .slice(0, 6);
   }, [data.missions]);
 
-  // 7️⃣ Feedback rating average
   const feedbackStats = useMemo(() => {
     const total = data.feedbacks.length;
     if (total === 0) return { total: 0, avg: 0, distribution: [] };
@@ -253,7 +244,6 @@ export default function Analytics() {
     return { total, avg: sum / total, distribution };
   }, [data.feedbacks]);
 
-  // KPIs
   const kpis = useMemo(() => {
     const totalEmergencies = allEmergencies.length;
     const completedRate =
@@ -264,7 +254,7 @@ export default function Analytics() {
         : 0;
     const avgPerDay =
       range === "all"
-        ? totalEmergencies // Approximate
+        ? totalEmergencies
         : totalEmergencies / parseInt(range);
 
     return {
@@ -279,7 +269,6 @@ export default function Analytics() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
@@ -314,7 +303,6 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <KpiCard
           label="Emergencies"
@@ -361,7 +349,6 @@ export default function Analytics() {
         </div>
       ) : (
         <>
-          {/* Row 1: Trend + Status */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             <ChartCard
               title="Requests Over Time"
@@ -438,7 +425,6 @@ export default function Analytics() {
             </ChartCard>
           </div>
 
-          {/* Row 2: Peak hours + Day of week */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <ChartCard
               title="Peak Hours"
@@ -492,7 +478,6 @@ export default function Analytics() {
             </ChartCard>
           </div>
 
-          {/* Row 3: Station load + Mission types */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <ChartCard
               title="Station Load"
@@ -558,7 +543,6 @@ export default function Analytics() {
             </ChartCard>
           </div>
 
-          {/* Row 4: Feedback */}
           <ChartCard
             title="Patient Feedback"
             subtitle={`${feedbackStats.total} ratings · ${
@@ -592,9 +576,6 @@ export default function Analytics() {
   );
 }
 
-// ──────────────────────────────────────────────
-// Sub-components
-// ──────────────────────────────────────────────
 function KpiCard({ label, value, icon: Icon, color, suffix }) {
   const colors = {
     redcross: "bg-redcross-50 text-redcross-600",

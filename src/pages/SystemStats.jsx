@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Database,
   Users,
@@ -24,12 +24,10 @@ import {
   query,
   orderBy,
   limit,
-  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 
-// All collections we want to count
 const COLLECTIONS = [
   { name: "users", label: "Users", icon: Users, color: "blue" },
   { name: "patients", label: "Patients", icon: Heart, color: "pink" },
@@ -119,50 +117,9 @@ export default function SystemStats() {
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  async function loadStats() {
-    setLoading(true);
-    try {
-      // Get all collection counts in parallel
-      const countPromises = COLLECTIONS.map(async (c) => {
-        try {
-          const snap = await getDocs(collection(db, c.name));
-          return { name: c.name, count: snap.size };
-        } catch (err) {
-          console.error(`Failed to count ${c.name}:`, err);
-          return { name: c.name, count: 0, error: true };
-        }
-      });
-
-      const results = await Promise.all(countPromises);
-      const countsObj = {};
-      results.forEach((r) => {
-        countsObj[r.name] = r.count;
-      });
-      setCounts(countsObj);
-
-      // Get user breakdown
-      const usersSnap = await getDocs(collection(db, "users"));
-      setUsers(usersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-
-      // Get recent activity from key collections
-      await loadRecentActivity();
-
-      setLastRefreshed(new Date());
-    } catch (err) {
-      console.error("Failed to load stats:", err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadRecentActivity() {
+  const loadRecentActivity = useCallback(async () => {
     const activities = [];
 
-    // Recent emergencies
     try {
       const snap = await getDocs(
         query(
@@ -184,7 +141,6 @@ export default function SystemStats() {
       });
     } catch {}
 
-    // Recent missions
     try {
       const snap = await getDocs(
         query(
@@ -206,7 +162,6 @@ export default function SystemStats() {
       });
     } catch {}
 
-    // Recent checklists
     try {
       const snap = await getDocs(
         query(
@@ -228,7 +183,6 @@ export default function SystemStats() {
       });
     } catch {}
 
-    // Recent feedback
     try {
       const snap = await getDocs(
         query(
@@ -250,7 +204,6 @@ export default function SystemStats() {
       });
     } catch {}
 
-    // Recent transport requests
     try {
       const snap = await getDocs(
         query(
@@ -274,12 +227,47 @@ export default function SystemStats() {
       });
     } catch {}
 
-    // Sort all by timestamp desc, take top 10
     activities.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     setRecentActivity(activities.slice(0, 10));
-  }
+  }, []);
 
-  // User breakdown
+  const loadStats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const countPromises = COLLECTIONS.map(async (c) => {
+        try {
+          const snap = await getDocs(collection(db, c.name));
+          return { name: c.name, count: snap.size };
+        } catch (err) {
+          console.error(`Failed to count ${c.name}:`, err);
+          return { name: c.name, count: 0, error: true };
+        }
+      });
+
+      const results = await Promise.all(countPromises);
+      const countsObj = {};
+      results.forEach((r) => {
+        countsObj[r.name] = r.count;
+      });
+      setCounts(countsObj);
+
+      const usersSnap = await getDocs(collection(db, "users"));
+      setUsers(usersSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+      await loadRecentActivity();
+
+      setLastRefreshed(new Date());
+    } catch (err) {
+      console.error("Failed to load stats:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadRecentActivity]);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
   const userBreakdown = {
     admins: users.filter((u) => u.role === "admin").length,
     emts: users.filter((u) => u.role === "emt").length,
@@ -288,16 +276,13 @@ export default function SystemStats() {
     withSubcode: users.filter((u) => u.subcode && u.subcode.trim()).length,
   };
 
-  // Total records
   const totalRecords = Object.values(counts).reduce((sum, c) => sum + c, 0);
 
-  // Total emergencies (combined)
   const totalEmergencies =
     (counts.emergency_requests || 0) + (counts.quick_emergency_requests || 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
@@ -327,7 +312,6 @@ export default function SystemStats() {
         </div>
       </div>
 
-      {/* Top-level metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <BigStatCard
           icon={Database}
@@ -359,7 +343,6 @@ export default function SystemStats() {
         />
       </div>
 
-      {/* User breakdown */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
         <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
           <Users size={16} className="text-gray-400" />
@@ -399,9 +382,7 @@ export default function SystemStats() {
         </div>
       </div>
 
-      {/* Two columns: Collections + Recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Collections list */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border border-gray-200">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
@@ -456,7 +437,6 @@ export default function SystemStats() {
           </div>
         </div>
 
-        {/* Recent activity */}
         <div>
           <div className="bg-white rounded-xl border border-gray-200">
             <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
@@ -506,7 +486,6 @@ export default function SystemStats() {
         </div>
       </div>
 
-      {/* Footer info */}
       <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
         <Database className="text-gray-400 flex-shrink-0 mt-0.5" size={16} />
         <div className="text-xs text-gray-600">
@@ -520,9 +499,6 @@ export default function SystemStats() {
   );
 }
 
-// ──────────────────────────────────────────────
-// Sub-components
-// ──────────────────────────────────────────────
 function BigStatCard({ icon: Icon, label, value, subtitle, color }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">

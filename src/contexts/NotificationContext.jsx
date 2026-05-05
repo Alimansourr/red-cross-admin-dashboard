@@ -5,39 +5,25 @@ import { useAuth } from "./AuthContext";
 
 const NotificationContext = createContext();
 
-// Short embedded notification sound (base64)
-// A small "ding" sound, ~0.3 seconds
-const NOTIFICATION_SOUND_URL =
-  "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YT5vAAA=";
-
-// Better fallback: use a known free CDN sound
-const FALLBACK_SOUND =
-  "https://cdn.jsdelivr.net/gh/anars/blank-audio@master/250-milliseconds-of-silence.mp3";
-
 export function NotificationProvider({ children }) {
   const { isAdmin, user } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
-  // Track previous IDs to detect what's NEW
   const seenIdsRef = useRef(new Set());
   const isInitialLoadRef = useRef(true);
   const audioRef = useRef(null);
   const originalTitleRef = useRef(document.title);
 
-  // Initialize audio + ask for browser notification permission
   useEffect(() => {
     if (!isAdmin) return;
 
-    // Create audio element
     audioRef.current = new Audio();
     audioRef.current.volume = 0.5;
-    // Use a reliable web-friendly notification sound
     audioRef.current.src =
       "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
     audioRef.current.load();
 
-    // Request browser notification permission
     if ("Notification" in window) {
       if (Notification.permission === "granted") {
         setPermissionGranted(true);
@@ -49,15 +35,12 @@ export function NotificationProvider({ children }) {
     }
   }, [isAdmin]);
 
-  // Subscribe to pending emergencies
   useEffect(() => {
     if (!isAdmin || !user) return;
 
-    // Reset on mount
     isInitialLoadRef.current = true;
     seenIdsRef.current = new Set();
 
-    // Listen to BOTH regular and quick emergency requests, status="pending"
     const unsubRegular = onSnapshot(
       query(
         collection(db, "emergency_requests"),
@@ -88,14 +71,12 @@ export function NotificationProvider({ children }) {
       const id = `${source}_${doc.id}`;
       if (!seenIdsRef.current.has(id)) {
         seenIdsRef.current.add(id);
-        // Only count as "new" after initial load
         if (!isInitialLoadRef.current) {
           newRequests.push({ id: doc.id, source, ...doc.data() });
         }
       }
     });
 
-    // Remove resolved requests from seen set
     const currentIds = new Set(snap.docs.map((d) => `${source}_${d.id}`));
     Array.from(seenIdsRef.current).forEach((id) => {
       if (id.startsWith(`${source}_`) && !currentIds.has(id)) {
@@ -103,7 +84,6 @@ export function NotificationProvider({ children }) {
       }
     });
 
-    // Trigger alerts for new requests
     if (newRequests.length > 0 && !isInitialLoadRef.current) {
       newRequests.forEach((req) => triggerAlert(req));
     }
@@ -113,11 +93,9 @@ export function NotificationProvider({ children }) {
   }
 
   function updatePendingCount() {
-    // Count from seenIdsRef (which mirrors current pending items)
     const count = seenIdsRef.current.size;
     setPendingCount(count);
 
-    // Update tab title
     if (count > 0) {
       document.title = `(${count}) ${originalTitleRef.current}`;
     } else {
@@ -126,10 +104,8 @@ export function NotificationProvider({ children }) {
   }
 
   function triggerAlert(request) {
-    // 1. Play sound
     playSound();
 
-    // 2. Browser notification (if permitted)
     if (permissionGranted && "Notification" in window) {
       const isQuick = request.source === "quick";
       const title = isQuick
@@ -143,18 +119,16 @@ export function NotificationProvider({ children }) {
         const notif = new Notification(title, {
           body,
           icon: "/favicon.ico",
-          tag: request.id, // prevents duplicate notifications
+          tag: request.id,
           requireInteraction: false,
         });
 
-        // Click notification → focus the tab and go to emergencies page
         notif.onclick = () => {
           window.focus();
           window.location.href = "/emergencies";
           notif.close();
         };
 
-        // Auto-close after 8 seconds
         setTimeout(() => notif.close(), 8000);
       } catch (err) {
         console.warn("Failed to show notification:", err);
@@ -169,7 +143,6 @@ export function NotificationProvider({ children }) {
       const playPromise = audioRef.current.play();
       if (playPromise) {
         playPromise.catch((err) => {
-          // Browsers block autoplay until user interacts with page
           console.warn("Sound blocked by browser:", err.message);
         });
       }
@@ -178,14 +151,13 @@ export function NotificationProvider({ children }) {
     }
   }
 
-  // Cleanup tab title on unmount
   useEffect(() => {
+    const originalTitle = originalTitleRef.current;
     return () => {
-      document.title = originalTitleRef.current;
+      document.title = originalTitle;
     };
   }, []);
 
-  // Manually trigger test notification (useful for demo!)
   function testNotification() {
     triggerAlert({
       id: "test",
