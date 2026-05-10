@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import LiveMap from "./pages/LiveMap";
 import Analytics from "./pages/Analytics";
 import SystemStats from "./pages/SystemStats";
+import OrderForecast from "./pages/OrderForecast";
 
 function App() {
   return (
@@ -57,6 +58,7 @@ function App() {
               <Route path="/wound-reports" element={<WoundReports />} />
               <Route path="/replenishment" element={<Replenishment />} />
               <Route path="/feedback" element={<Feedback />} />
+              <Route path="/forecast" element={<OrderForecast />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

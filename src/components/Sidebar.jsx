@@ -20,6 +20,7 @@ import {
   BarChart3,
   Database,
   Search,
+  Brain, 
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNotifications } from "../contexts/NotificationContext";
@@ -28,6 +29,7 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Overview" },
   { to: "/map", icon: MapPin, label: "Live Map" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/forecast", icon: Brain, label: "AI Order Forecast" }, 
   { to: "/emergencies", icon: Siren, label: "Emergencies" },
   { to: "/transport", icon: Truck, label: "Transport Requests" },
   { to: "/users", icon: Users, label: "Users (EMTs)" },
