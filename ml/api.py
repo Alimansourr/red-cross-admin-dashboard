@@ -43,6 +43,7 @@ print("📂 Loading reference data...")
 ORDERS = pd.read_excel("data/monthly_orders_2025.xlsx")
 WOUNDS = pd.read_excel("data/wound_care_reports_2025.xlsx")
 MISSIONS = pd.read_excel("data/missions_2025.xlsx")
+WEATHER = pd.read_excel("data/weather_holidays_2025.xlsx")
 
 ORDERS["Date"] = pd.to_datetime(ORDERS["Date"])
 WOUNDS["Date"] = pd.to_datetime(WOUNDS["Date"])
@@ -90,64 +91,83 @@ def to_native(value):
 
 
 def build_features_for_month(target_month):
-    """
-    Build the feature DataFrame needed to predict ALL items for a given month.
-    Returns one row per item with all required features.
-    """
+    """Build features for any target month, including weather + holidays + rolling lags."""
     season = get_season(target_month)
-
-    # Compute operational metrics from previous month (used as proxies for future)
     prev_month = target_month - 1 if target_month > 1 else 12
 
     # Wound features (counts by injury type for prev_month)
     wound_features = (
         WOUNDS[WOUNDS["month"] == prev_month]
-        .groupby("Injury Type")
-        .size()
-        .to_dict()
+        .groupby("Injury Type").size().to_dict()
     )
 
-    # Mission features (counts by mission type for prev_month)
+    # Mission features
     mission_features = (
         MISSIONS[MISSIONS["month"] == prev_month]
-        .groupby("Mission Type")
-        .size()
-        .to_dict()
+        .groupby("Mission Type").size().to_dict()
     )
 
     total_wound_reports = len(WOUNDS[WOUNDS["month"] == prev_month])
     total_missions = len(MISSIONS[MISSIONS["month"] == prev_month])
 
-    # Build one row per item
+    # ── NEW: Weather features for target_month ──
+    weather_row = WEATHER[WEATHER["month"] == target_month].iloc[0]
+
     rows = []
     for item in ITEMS:
         row = {
             "month": target_month,
             "total_wound_reports": total_wound_reports,
             "total_missions": total_missions,
+            # Weather
+            "avg_temp_max": float(weather_row["avg_temp_max"]),
+            "avg_temp_min": float(weather_row["avg_temp_min"]),
+            "avg_temp_mean": float(weather_row["avg_temp_mean"]),
+            "total_rainfall_mm": float(weather_row["total_rainfall_mm"]),
+            "rainy_days": int(weather_row["rainy_days"]),
+            "hot_days": int(weather_row["hot_days"]),
+            "cold_days": int(weather_row["cold_days"]),
+            # Holidays
+            "has_ramadan": int(weather_row["has_ramadan"]),
+            "has_eid": int(weather_row["has_eid"]),
+            "has_christmas_fireworks": int(weather_row["has_christmas_fireworks"]),
+            "is_summer_tourism_peak": int(weather_row["is_summer_tourism_peak"]),
+            "has_school_year_start": int(weather_row["has_school_year_start"]),
         }
 
-        # Wound features (prefix wound_*)
+        # Wound + mission counts
         for k, v in wound_features.items():
             row[f"wound_{k.lower().replace(' ', '_')}"] = v
-
-        # Mission features (prefix mission_*)
         for k, v in mission_features.items():
             row[f"mission_{k.lower().replace(' ', '_')}"] = v
 
-        # Lag-1: last month's quantity for this item
-        prev_order = ORDERS[
-            (ORDERS["month"] == prev_month) & (ORDERS["Item"] == item)
-        ]
-        row["lag_1_quantity"] = (
-            float(prev_order["Quantity"].iloc[0]) if len(prev_order) > 0 else 0.0
-        )
+        # ── Lag + Rolling features ──
+        item_orders = ORDERS[ORDERS["Item"] == item].sort_values("month")
 
-        # One-hot encode season
-        for s in ["fall", "spring", "summer", "winter"]:
-            row[f"season_{s.capitalize()}"] = 1 if s == season else 0
+        # Lag 1
+        prev = item_orders[item_orders["month"] == prev_month]
+        row["lag_1_quantity"] = float(prev["Quantity"].iloc[0]) if len(prev) > 0 else 0
 
-        # One-hot encode item
+        # 3-month rolling avg
+        last_3 = item_orders[item_orders["month"].isin(
+            [(prev_month - i - 1) % 12 + 1 for i in range(3)]
+        )]
+        row["lag_3_avg"] = float(last_3["Quantity"].mean()) if len(last_3) > 0 else row["lag_1_quantity"]
+
+        # 6-month rolling avg
+        last_6 = item_orders[item_orders["month"].isin(
+            [(prev_month - i - 1) % 12 + 1 for i in range(6)]
+        )]
+        row["lag_6_avg"] = float(last_6["Quantity"].mean()) if len(last_6) > 0 else row["lag_1_quantity"]
+
+        # 12-month avg (full year)
+        row["lag_12_avg"] = float(item_orders["Quantity"].mean()) if len(item_orders) > 0 else row["lag_1_quantity"]
+
+        # One-hot season
+        for s in ["Fall", "Spring", "Summer", "Winter"]:
+            row[f"season_{s}"] = 1 if s == season else 0
+
+        # One-hot item
         for it in ITEMS:
             row[f"item_{it}"] = 1 if it == item else 0
 
@@ -155,7 +175,7 @@ def build_features_for_month(target_month):
 
     df = pd.DataFrame(rows)
 
-    # Align with the exact columns the model expects (add missing as 0, drop extras)
+    # Align with the model's expected columns
     for col in FEATURE_COLUMNS:
         if col not in df.columns:
             df[col] = 0
